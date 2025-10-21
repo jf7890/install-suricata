@@ -14,7 +14,6 @@ fi
 
 # --- 1. GỠ SURICATA HOÀN TOÀN ---
 echo "[+] Checking and completely removing any existing Suricata installations..."
-# ... (Toàn bộ phần gỡ cài đặt của bạn giữ nguyên, nó rất tốt)
 if command -v suricata >/dev/null 2>&1; then
   echo "[!] Suricata detected! Proceeding with full cleanup..."
   systemctl stop suricata 2>/dev/null || true
@@ -90,7 +89,7 @@ suricata-update update-sources
 if [ "$RULESET" = "emerging-threats" ]; then
   suricata-update enable-source et/open
 fi
-suricata-update --no-test # Chạy update nhưng không test vội
+suricata-update --no-test # Chạy update nhưng không test
 
 # --- 6. ÁP DỤNG CÁC CẤU HÌNH TÙY CHỈNH (SAU KHI UPDATE) ---
 echo "[+] Applying custom configurations to suricata.yaml..."
