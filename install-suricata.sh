@@ -12,25 +12,58 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# --- 1. KIỂM TRA VÀ GỠ SURICATA CŨ (NẾU CÓ) ---
-echo "[Kiểm tra Suricata hiện có trên hệ thống...]"
+# --- 1. GỠ SURICATA HOÀN TOÀN (APT + SOURCE + FILE THỦ CÔNG) ---
+echo "[+] Checking and completely removing any existing Suricata installations..."
+
 if command -v suricata >/dev/null 2>&1; then
-  echo "Phát hiện Suricata đã được cài đặt trước đó!"
-  echo "Bạn có muốn gỡ hoàn toàn để cài mới không? (yes/no)"
-  read REMOVE_OLD
-  if [ "$REMOVE_OLD" = "yes" ]; then
-    echo "[Đang gỡ Suricata và toàn bộ cấu hình cũ...]"
-    systemctl stop suricata 2>/dev/null || true
-    apt purge -y suricata suricata-update
-    apt autoremove --purge -y
-    rm -rf /etc/suricata /var/lib/suricata /var/log/suricata
-    echo "[OK] Đã xóa cấu hình & dữ liệu cũ."
-  else
-    echo "Giữ lại cấu hình cũ. (Chú ý: Có thể gây xung đột nếu script tạo file mới)"
+  echo "[!] Suricata detected! Proceeding with full cleanup..."
+
+  # Stop & disable service
+  systemctl stop suricata 2>/dev/null || true
+  systemctl disable suricata 2>/dev/null || true
+  systemctl daemon-reload
+
+  # Remove APT packages
+  apt purge -y suricata suricata-update || true
+  apt autoremove --purge -y || true
+  apt autoclean || true
+
+  # Remove source-based installation (if exists)
+  # Try to uninstall via make if source directory exists
+  if [ -d "/usr/local/src/suricata" ]; then
+    echo "[+] Removing Suricata installed from source..."
+    make uninstall -C /usr/local/src/suricata 2>/dev/null || true
   fi
+
+  # Remove binary and libraries from local
+  rm -rf /usr/local/bin/suricata* /usr/local/bin/suri* 2>/dev/null
+  rm -rf /usr/local/lib/libhtp* 2>/dev/null
+  ldconfig
+
+  # Remove configuration, logs, and rules
+  rm -rf /etc/suricata \
+         /var/lib/suricata \
+         /var/log/suricata \
+         /usr/local/etc/suricata \
+         /etc/default/suricata
+
+  # Remove any remaining source directories
+  rm -rf /usr/local/src/suricata* ~/suricata* ~/Downloads/suricata* 2>/dev/null
+
+  echo "[✓] All Suricata files, services, and configurations have been removed."
 else
-  echo "[OK] Chưa có Suricata. Tiếp tục cài mới."
+  echo "[+] No Suricata installation found. Proceeding..."
 fi
+
+# Final check
+if command -v suricata >/dev/null 2>&1; then
+  echo "[✗] Suricata still detected! Please check manually."
+else
+  echo "[✓] Suricata removal confirmed. System is clean."
+fi
+
+echo "[DONE] Ready for fresh installation."
+
 
 # --- 2. TẢI FILE ENV ---
 ENV_FILE="./suricata.env"
