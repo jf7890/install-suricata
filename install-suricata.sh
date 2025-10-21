@@ -78,12 +78,23 @@ CURRENT_USER=$(logname)
 echo "[INFO] User đang chạy (sẽ được gán quyền): $CURRENT_USER"
 
 # --- 3. CẬP NHẬT HỆ THỐNG VÀ CÀI SURICATA ---
-echo "[Bước 1] Cài đặt Suricata từ PPA chính thức..."
-apt update -y
-apt install -y software-properties-common
-add-apt-repository ppa:oisf/suricata-stable -y
-apt update -y
-apt install -y suricata suricata-update jq
+UBUNTU_VERSION=$(lsb_release -rs | cut -d'.' -f1)
+
+echo "[INFO] Detected Ubuntu version: $UBUNTU_VERSION"
+
+# Decide installation path
+if [ "$UBUNTU_VERSION" -ge 24 ]; then
+  echo "[INFO] Using official Ubuntu repository (no PPA needed)"
+  apt update -y
+  apt install -y suricata jq
+else
+  echo "[INFO] Using OISF PPA repository for Suricata"
+  apt update -y
+  apt install -y software-properties-common
+  add-apt-repository ppa:oisf/suricata-stable -y
+  apt update -y
+  apt install -y suricata suricata-update jq
+fi
 
 # --- 4. TẠO LOCAL RULES ---
 if [ "$ENABLE_LOCAL_RULES" = "yes" ]; then
