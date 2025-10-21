@@ -6,10 +6,30 @@
 
 set -e
 
-# --- 1. KIỂM TRA QUYỀN ROOT ---
+# --- 0. KIỂM TRA QUYỀN ROOT ---
 if [ "$EUID" -ne 0 ]; then
   echo "Script cần quyền root. Hãy chạy bằng: sudo bash install_suricata.sh"
   exit 1
+fi
+
+# --- 1. KIỂM TRA VÀ GỠ SURICATA CŨ (NẾU CÓ) ---
+echo "[Kiểm tra Suricata hiện có trên hệ thống...]"
+if command -v suricata >/dev/null 2>&1; then
+  echo "Phát hiện Suricata đã được cài đặt trước đó!"
+  echo "Bạn có muốn gỡ hoàn toàn để cài mới không? (yes/no)"
+  read REMOVE_OLD
+  if [ "$REMOVE_OLD" = "yes" ]; then
+    echo "[Đang gỡ Suricata và toàn bộ cấu hình cũ...]"
+    systemctl stop suricata 2>/dev/null || true
+    apt purge -y suricata suricata-update
+    apt autoremove --purge -y
+    rm -rf /etc/suricata /var/lib/suricata /var/log/suricata
+    echo "[OK] Đã xóa cấu hình & dữ liệu cũ."
+  else
+    echo "Giữ lại cấu hình cũ. (Chú ý: Có thể gây xung đột nếu script tạo file mới)"
+  fi
+else
+  echo "[OK] Chưa có Suricata. Tiếp tục cài mới."
 fi
 
 # --- 2. TẢI FILE ENV ---
