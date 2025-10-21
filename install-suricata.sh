@@ -114,18 +114,22 @@ fi
 
 sed -i "s|HOME_NET:.*|HOME_NET: \"$HOME_NET_VALUE\"|g" /etc/suricata/suricata.yaml
 
-# --- 6. KÍCH HOẠT LOCAL RULES TRONG YAML ---
+# --- 6. KÍCH HOẠT LOCAL RULES TRONG YAML (ĐÃ SỬA CHO SURICATA 7+) ---
 if [ "$ENABLE_LOCAL_RULES" = "yes" ]; then
-  if ! grep -q "local.rules" /etc/suricata/suricata.yaml; then
-    sed -i "/rule-files:/a\  - local.rules" /etc/suricata/suricata.yaml
+  # Kiểm tra xem dòng đã tồn tại chưa để tránh thêm nhiều lần
+  if ! grep -q "/etc/suricata/rules/local.rules" /etc/suricata/suricata.yaml; then
+    echo "[+] Adding local.rules to suricata.yaml..."
+    # Thêm đường dẫn đầy đủ của local.rules vào sau dòng "- suricata.rules"
+    sed -i "/- suricata.rules/a \ \ - /etc/suricata/rules/local.rules" /etc/suricata/suricata.yaml
   fi
 fi
 
-# --- 7. CẤU HÌNH IPS MODE VÀ AF-PACKET ---
+# --- 7. CẤU HÌNH IPS MODE VÀ AF-PACKET (ĐÃ SỬA) ---
 if [ "$MODE" = "IPS" ] && [ "$ENABLE_AF_PACKET" = "yes" ]; then
-  echo "[Bước 4] Cấu hình Suricata chế độ IPS inline (AF-PACKET + NFQUEUE)..."
-  sed -i 's|af-packet:.*|af-packet:|' /etc/suricata/suricata.yaml
-  cat <<EOF >/etc/suricata/af-packet-config.yaml
+  echo "[Bước 4] Cấu hình Suricata chế độ IPS inline (AF-PACKET)..."
+  
+  # Tạo khối cấu hình af-packet đúng và đối xứng
+  AF_PACKET_CONFIG="
 af-packet:
   - interface: $WAN_IFACE
     cluster-id: 99
@@ -137,9 +141,17 @@ af-packet:
     cluster-id: 98
     cluster-type: cluster_flow
     defrag: yes
-EOF
-  sed -i '/^af-packet:/,$d' /etc/suricata/suricata.yaml
-  cat /etc/suricata/af-packet-config.yaml >> /etc/suricata/suricata.yaml
+    copy-mode: ips      # <-- ĐÃ THÊM
+    copy-iface: $WAN_IFACE  # <-- ĐÃ THÊM
+"
+  # Tìm và thay thế toàn bộ khối af-packet trong suricata.yaml
+  # Bằng cách này, chúng ta không cần dùng file tạm và sed nhiều lần
+  if grep -q "^af-packet:" /etc/suricata/suricata.yaml; then
+    # Xóa khối cũ nếu nó tồn tại
+    sed -i '/^af-packet:/,$d' /etc/suricata/suricata.yaml
+  fi
+  # Nối khối mới vào cuối file
+  echo "$AF_PACKET_CONFIG" >> /etc/suricata/suricata.yaml
 fi
 
 # --- 8. CẬP NHẬT RULES ---
