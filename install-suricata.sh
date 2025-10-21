@@ -80,7 +80,7 @@ if [ "$ENABLE_LOCAL_RULES" = "yes" ]; then
   echo "[+] Creating local.rules file..."
   mkdir -p /etc/suricata/rules
   touch /etc/suricata/rules/local.rules
-  echo '[local] alert icmp any any -> any any (msg:"LOCAL ICMP DETECTED"; sid:1000001; rev:1;)' > /etc/suricata/rules/local.rules
+  echo 'alert icmp any any -> any any (msg:"LOCAL ICMP DETECTED"; sid:1000001; rev:1;)' > /etc/suricata/rules/local.rules
 fi
 
 # --- 5. CHẠY SURICATA-UPDATE TRƯỚC TIÊN ---
@@ -106,11 +106,28 @@ else
 fi
 sed -i "s|HOME_NET:.*|HOME_NET: \"$HOME_NET_VALUE\"|g" /etc/suricata/suricata.yaml
 
-# Kích hoạt local.rules
+# Kích hoạt local.rules (PHIÊN BẢN NÂNG CẤP)
 if [ "$ENABLE_LOCAL_RULES" = "yes" ]; then
-  if ! grep -q "/etc/suricata/rules/local.rules" /etc/suricata/suricata.yaml; then
-    echo "[+] Adding local.rules to suricata.yaml..."
-    sed -i "/- suricata.rules/a \ \ - /etc/suricata/rules/local.rules" /etc/suricata/suricata.yaml
+  # Kiểm tra xem khối rule-files có tồn tại không bằng cách tìm anchor 'default-rule-path'
+  if ! grep -q "default-rule-path:" /etc/suricata/suricata.yaml; then
+    echo "[WARN] 'default-rule-path' not found. Appending entire rule block to config..."
+    # Tạo khối văn bản cần thêm
+    RULE_BLOCK="
+# default-rule-path is automatically prefixed to any rule file that does
+# not have a path.
+default-rule-path: /var/lib/suricata/rules
+rule-files:
+  - suricata.rules
+  - /etc/suricata/rules/local.rules
+"
+    # Nối khối này vào cuối file suricata.yaml
+    echo "$RULE_BLOCK" >> /etc/suricata/suricata.yaml
+  else
+    # Nếu khối đã tồn tại, chỉ cần đảm bảo dòng local.rules có mặt
+    if ! grep -q "/etc/suricata/rules/local.rules" /etc/suricata/suricata.yaml; then
+      echo "[+] Adding local.rules to existing rule-files section..."
+      sed -i "/- suricata.rules/a \ \ - /etc/suricata/rules/local.rules" /etc/suricata/suricata.yaml
+    fi
   fi
 fi
 
