@@ -153,6 +153,8 @@ af-packet:
   # Nối khối mới vào cuối file
   echo "$AF_PACKET_CONFIG" >> /etc/suricata/suricata.yaml
 fi
+echo "[FIX] Removing problematic 'bittorrent-dht' from default config..."
+sed -i '/- bittorrent-dht/d' /etc/suricata/suricata.yaml
 
 # --- 8. CẬP NHẬT RULES ---
 echo "[Bước 5] Cập nhật rules mới nhất từ Emerging Threats..."
