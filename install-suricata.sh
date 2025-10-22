@@ -10,7 +10,9 @@ set -Eeuo pipefail
 # ---------- Helpers ----------
 die() { echo "[-] $*" >&2; exit 1; }
 bak() { local f="$1"; [[ -f "$f" ]] && cp -a "$f" "$f.bak.$(date +%s)" || true; }
-
+has_update_in_suricata() {
+  dpkg -L suricata 2>/dev/null | grep -q '/usr/bin/suricata-update'
+}
 # [NEW] Xóa đúng block YAML top-level theo key (vd: 'af-packet:')
 remove_yaml_block() {
   local file="$1" key="$2"
@@ -106,26 +108,29 @@ echo "[OK] Loaded env from $ENV_FILE"
 CURRENT_USER="${SUDO_USER:-$(logname 2>/dev/null || echo root)}"
 echo "[INFO] Will set permissions for user: $CURRENT_USER"
 
-# ---------- 3. CÀI SURICATA & CÔNG CỤ ----------
-UBUNTU_VERSION="$(lsb_release -rs | cut -d'.' -f1)"
-echo "[INFO] Ubuntu major version: $UBUNTU_VERSION"
+# ---------- 3. CÀI SURICATA & CÔNG CỤ (Ubuntu 20.04/22.04) ----------
+UBU_VER="$(lsb_release -rs 2>/dev/null || echo 0)"
+echo "[INFO] Ubuntu version: $UBU_VER (target: 20.04/22.04)"
 
 apt update -y
-# [CHANGED] Cài suricata-update cho mọi version
-if [[ "$UBUNTU_VERSION" -ge 24 ]]; then
-  echo "[INFO] Installing from Ubuntu repo..."
-  apt install -y suricata suricata-update jq
-else
-  echo "[INFO] Enabling OISF PPA for stable Suricata..."
-  apt install -y software-properties-common
+# cần để có add-apt-repository và các tiện ích
+apt install -y jq software-properties-common
+
+# 1) Cài từ repo chính thức trước (ưu tiên)
+if ! apt install -y suricata; then
+  echo "[INFO] Repo mặc định không có bản phù hợp. Bật OISF PPA làm fallback..."
   add-apt-repository -y ppa:oisf/suricata-stable
   apt update -y
-  apt install -y suricata suricata-update jq
+  apt install -y suricata
 fi
 
-# Đảm bảo user/group tồn tại & thư mục
-id -u suricata &>/dev/null || adduser --system --group --no-create-home suricata
-install -d -o suricata -g suricata -m 0750 /etc/suricata /var/log/suricata /var/lib/suricata
+# 2) Chỉ cài 'suricata-update' riêng nếu KHÔNG có sẵn trong gói 'suricata'
+if has_update_in_suricata; then
+  echo "[INFO] 'suricata-update' đã đi kèm trong gói 'suricata' → bỏ qua cài gói riêng."
+else
+  echo "[INFO] 'suricata-update' không có trong gói 'suricata' → cài gói riêng."
+  apt install -y suricata-update
+fi
 
 # ---------- 4. TẠO local.rules ----------
 if [[ "${ENABLE_LOCAL_RULES:-yes}" == "yes" ]]; then
